@@ -30,7 +30,7 @@ def MCS_quantile(objfun, dim, loc, scale, dist_type, N=2**13, M=64, skip=0):
         Number of parameters of objective function.
 
     loc : np.ndarray or float
-        The location(loc) keyword passed to `scipy.stats.norm`_ function to shift the
+        The location(`loc`) keyword passed to `scipy.stats.norm`_ function to shift the
         location of "standardized" distribution. Specifically, for normal distribution
         it specifies the mean with the length of `dim`.
 
@@ -38,7 +38,7 @@ def MCS_quantile(objfun, dim, loc, scale, dist_type, N=2**13, M=64, skip=0):
             _scipy.stats.norm.html
 
     scale : np.ndarray or float
-        The scale keyword passed to `scipy.stats.norm`_ function to adjust the scale of
+        The `scale` keyword passed to `scipy.stats.norm`_ function to adjust the scale of
         "standardized" distribution. Specifically, for normal distribution it specifies
         the covariance matrix of shape (dim, dim).
 
