@@ -15,7 +15,7 @@ from scipy.stats import uniform
 from scipy.stats import expon
 
 
-def MCS_quantile(objfun, dim, loc, scale, dist_type, N=2**13, M=64, skip=0):
+def MCS_quantile(objfun, dim, loc, scale, dist_type, N=2**13, M=64, skip=0,):
     r"""Compute Monte Carlo estimators of quantile based global sensitivity measures.
 
     This function implements the Double loop reordering(DLR) approach described in
@@ -73,7 +73,7 @@ def MCS_quantile(objfun, dim, loc, scale, dist_type, N=2**13, M=64, skip=0):
 
     References
     ----------
-    .. [K2019] Kucherenko, S. Song, L. Wang. Quantile based global
+    .. [K2019] S. Kucherenko, S. Song, L. Wang. Quantile based global
         sensitivity measures, Reliab. Eng. Syst. Saf. 185 (2019) 35–48.
 
     .. [K2017] Kucherenko S, Song S. Different numerical estimators
@@ -117,7 +117,7 @@ def _get_unconditional_sample(dim, loc, scale, dist_type, N, M, skip=0):
     return A
 
 
-def _get_conditional_sample(dim, loc, scale, dist_type, N, M, skip):
+def _get_conditional_sample(dim, loc, scale, dist_type, N, M, skip,):
     """Generate a conditional sample set from the base sample set."""
     A = _get_unconditional_sample(dim, loc, scale, dist_type, N, M, skip)
     B = A[:M]
@@ -133,9 +133,9 @@ def _get_conditional_sample(dim, loc, scale, dist_type, N, M, skip):
     return C
 
 
-def _unconditional_q_Y(objfun, dim, loc, scale, dist_type, alp, N, M, skip):
+def _unconditional_q_Y(objfun, dim, loc, scale, dist_type, alp, N, M, skip,):
     """Calculate quantiles of outputs with base sample set as inputs."""
-    A = _get_unconditional_sample(dim, loc, scale, dist_type, N, M, skip)
+    A = _get_unconditional_sample(dim, loc, scale, dist_type, N, M, skip,)
 
     # Equation 26 & 23
     Y1 = objfun(A)  # values of outputs
@@ -146,10 +146,10 @@ def _unconditional_q_Y(objfun, dim, loc, scale, dist_type, alp, N, M, skip):
     return qy_alp1
 
 
-def _conditional_q_Y(objfun, dim, loc, scale, dist_type, alp, N, M, skip):
+def _conditional_q_Y(objfun, dim, loc, scale, dist_type, alp, N, M, skip,):
     """Calculate quantiles of outputs with conditional sample set as inputs."""
     C = _get_conditional_sample(
-        dim, loc, scale, dist_type, N, M, skip)  # shape(M, dim, N, dim)
+        dim, loc, scale, dist_type, N, M, skip,)  # shape(M, dim, N, dim)
 
     # initialize values of conditional outputs.
     Y2 = np.array([[np.zeros((N, 1)) for x in range(dim)]
@@ -176,12 +176,12 @@ def _conditional_q_Y(objfun, dim, loc, scale, dist_type, alp, N, M, skip):
     return qy_alp2
 
 
-def _quantile_based_measures(objfun, dim, loc, scale, dist_type, alp, N, M, skip):
+def _quantile_based_measures(objfun, dim, loc, scale, dist_type, alp, N, M, skip,):
     """Compute MC/QMC estimators of quantile based measures."""
     qy_alp1 = _unconditional_q_Y(
-        objfun, dim, loc, scale, dist_type, alp, N, M, skip)
+        objfun, dim, loc, scale, dist_type, alp, N, M, skip,)
     qy_alp2 = _conditional_q_Y(
-        objfun, dim, loc, scale, dist_type, alp, N, M, skip)
+        objfun, dim, loc, scale, dist_type, alp, N, M, skip,)
 
     # initialization
     q1_alp = np.zeros((len(alp), dim))
@@ -199,7 +199,7 @@ def _quantile_based_measures(objfun, dim, loc, scale, dist_type, alp, N, M, skip
     return q1_alp, q2_alp
 
 
-def _nomalized_quantile_based_measures(objfun, dim, loc, scale, dist_type, alp, N, M, skip):
+def _nomalized_quantile_based_measures(objfun, dim, loc, scale, dist_type, alp, N, M, skip,):
     """Compute MC/QMC estimators of nomalized quantile based measures."""
     q1_alp, q2_alp = _quantile_based_measures(
         objfun, dim, loc, scale, dist_type, alp, N, M, skip)
