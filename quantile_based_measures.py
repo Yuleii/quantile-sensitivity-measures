@@ -19,7 +19,8 @@ def mcs_quantile(
 ):
     r"""Compute Monte Carlo estimators of quantile based global sensitivity measures.
 
-    This function implements the Double loop reordering(DLR) approach described in
+    This function implements the Double loop reordering
+    (DLR) approach described in
     Section 4.2 of [K2019]_.
 
     Parameters
@@ -105,7 +106,7 @@ def _get_unconditional_sample(
     # Generate uniform distributed sample
     u_1 = cp.generate_samples(order=n_draws + skip, domain=n_params, rule="S").T
     u_2 = u_1[skip:, :n_params]
-    unconditional_sample = np.zeros((n_draws, n_params))
+    # unconditional_sample = np.zeros((n_draws, n_params))
 
     # Transform uniform draw into assigned joint PDF
     if dist_type == "Normal":
