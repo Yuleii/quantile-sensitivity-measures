@@ -1,0 +1,47 @@
+name: quantile_measures
+
+channels:
+  - defaults
+  - conda-forge
+  - opensourceeconomics
+
+dependencies:
+  - python=3.7
+  - sphinx
+  - pandas
+  - numpy=1.18
+  - pip
+  - scipy
+  - statsmodels
+  - jupyter
+  - jupyterlab
+  - seaborn
+  - numba
+  - pdbpp
+  - temfpy>=1.1
+  - chaospy
+  - pytest=5.4.3
+  - pytest-black
+  - pytest-flake8
+  - pytest-cov
+  - pytest-sugar
+  - hypothesis
+  - nbsphinx
+  - sphinx_rtd_theme
+  - sphinxcontrib-bibtex
+  - r-base
+  - r-r.utils
+  - r-condmvnorm
+  - rpy2==2.9.4
+  - pre-commit
+
+  - pip:
+    - isort
+    - pytest-stress
+    - pytest-randomly
+    - black
+    - black-nb
+    - flake8-nb
+    - numpydoc
+    - cairosvg
+    - sphinxcontrib-svg2pdfconverter[CairoSVG]
