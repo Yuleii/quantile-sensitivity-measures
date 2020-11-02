@@ -1,4 +1,4 @@
-"""Calculate quantile based global sensitivity measures.
+"""The double loop reordering estimators of quantile based global sensitivity measures.
 
 This module contains functions to calculate global sensitivity measures based on
 quantiles of the output introduced by Kucherenko et al.(2019).
@@ -37,7 +37,7 @@ def dlr_mcs_quantile(
     n_params : int
         Number of parameters of objective function.
 
-    loc : np.ndarray or float
+    loc : float or np.ndarray
         The location(`loc`) keyword passed to `scipy.stats.norm`_ function to shift the
         location of "standardized" distribution. Specifically, for normal distribution
         it specifies the mean with the length of `n_params`.
@@ -45,7 +45,7 @@ def dlr_mcs_quantile(
         .. _scipy.stats.norm: https://docs.scipy.org/doc/scipy/reference/generated/
             _scipy.stats.norm.html
 
-    scale : np.ndarray or float
+    scale : float or np.ndarray
         The `scale` keyword passed to `scipy.stats.norm`_ function to adjust the scale of
         "standardized" distribution. Specifically, for normal distribution it specifies
         the covariance matrix of shape (n_params, n_params).
@@ -66,7 +66,8 @@ def dlr_mcs_quantile(
         dimensions; however if the number of parameters (``len(mean)``) exceeds ~20
         "random" can start to perform better. See https://tinyurl.com/p6grk3j.
 
-    seed : Random number generator seed.
+    seed : int
+        Random number generator seed.
 
     skip : int
         Number of values to skip of Sobol sequence. Default is `0`.
@@ -98,6 +99,7 @@ def dlr_mcs_quantile(
     dalp = (0.98 - 0.02) / 30
     alp = np.arange(0.02, 0.98 + dalp, dalp)  # len(alp) = 31
 
+    # get the base sample from a joint PDF
     x = _dlr_unconditional_sample(
         n_params,
         loc,
@@ -109,14 +111,17 @@ def dlr_mcs_quantile(
         skip=0,
     )
 
+    # get the conditional sample set
     x_mix = _dlr_conditional_sample(x)
 
+    # quantile of output calculated with base sample set
     quantile_y_x = _dlr_unconditional_quantile_y(
         x,
         func,
         alp,
     )
 
+    # quantile of output calculated with conditional sample set
     quantile_y_x_mix = _dlr_conditional_quantile_y(x_mix, func, alp)
 
     # Get quantile based measures
@@ -138,7 +143,7 @@ def _dlr_unconditional_sample(
     seed=0,
     skip=0,
 ):
-    """Generate a base sample set according to joint PDF."""
+    """Generate the base sample set according to a joint PDF."""
     # Generate uniform distributed sample
     np.random.seed(seed)
 
@@ -157,7 +162,7 @@ def _dlr_unconditional_sample(
 
     u_2 = u_1[skip:, :n_params]
 
-    # Transform uniform draw into assigned joint PDF
+    # Transform uniform draw into the assigned joint PDF
     if dist_type == "Normal":
         z = norm.ppf(u_2)
         cholesky = np.linalg.cholesky(scale)
@@ -178,7 +183,7 @@ def _dlr_conditional_sample(x):
 
     n_draws, n_params = x.shape
 
-    # The dependence of n versus n_draws accroding to [K2017] fig.1
+    # The dependence of m versus n_draws accroding to [K2017] fig.1
     if n_draws == 2 ** 6:
         m = 2 ** 3
     elif n_draws <= 2 ** 9:
@@ -193,9 +198,9 @@ def _dlr_conditional_sample(x):
         raise NotImplementedError
 
     conditional_bin = x[:m]
-
     x_mix = np.zeros((m, n_params, n_draws, n_params))
 
+    # subdivide unconditional sample into M eaually bins, within each bin x_i being fixed.
     for i in range(n_params):
         for j in range(m):
             x_mix[j, i] = x
@@ -209,7 +214,7 @@ def _dlr_unconditional_quantile_y(
     func,
     alp,
 ):
-    """Calculate quantiles of outputs with unconditional sample set as inputs."""
+    """Calculate quantiles of outputs with unconditional sample set as input."""
     n_draws = len(x)
     # Equation 26 & 23
     y_x = func(x)  # values of outputs
@@ -221,21 +226,20 @@ def _dlr_unconditional_quantile_y(
 
 
 def _dlr_conditional_quantile_y(x_mix, func, alp):
-    """Calculate quantiles of outputs with conditional sample set as inputs."""
+    """Calculate quantiles of outputs with conditional sample set as input."""
     m, n_params, n_draws = x_mix.shape[:3]
 
     y_x_mix = np.zeros((m, n_params, n_draws, 1))  # N*d*N*1
     y_x_mix_asc = np.zeros((m, n_params, n_draws, 1))  # N*d*N*1
     quantile_y_x_mix = np.zeros((1, n_params, len(alp), m))  # 1*d*31*m
 
-    # Equation 26 & 23
+    # Equation 26 & 23. Get CDF within each bin.
     for i in range(n_params):
         for j in range(m):
             # values of conditional outputs
             y_x_mix[j, i] = np.vstack(func(x_mix[j, i]))
             y_x_mix[j, i].sort(axis=0)
             y_x_mix_asc[j, i] = y_x_mix[j, i]
-
             for pp in range(len(alp)):
                 quantile_y_x_mix[0, i, pp, j] = y_x_mix_asc[j, i][
                     (np.floor(alp[pp] * n_draws)).astype(int)
