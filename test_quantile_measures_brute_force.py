@@ -78,7 +78,7 @@ def first_example_fixture():
         "loc": mean_1,
         "scale": cov_1,
         "dist_type": "Normal",
-        "n_draws": 2 ** 13,
+        "n_draws": 3000,
         "quantile_measures_expected": quantile_measures_expected,
     }
 
