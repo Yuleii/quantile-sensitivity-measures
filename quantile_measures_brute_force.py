@@ -1,4 +1,4 @@
-"""Calculate quantile based global sensitivity measures.
+"""The brute fot estimators of quantile based global sensitivity measures.
 
 This module contains functions to calculate global sensitivity measures based on
 quantiles of the output introduced by Kucherenko et al.(2019).
@@ -25,7 +25,8 @@ def bf_mcs_quantile(
 ):
     r"""Compute (Quasi) Monte Carlo estimators of quantile based global sensitivity measures.
 
-    This function implements the Brute Force estimator described in Section 4.1 of [K2019]_.
+    This function implements the Double loop reordering
+    (DLR) approach described in Section 4.1 of [K2019]_.
 
     Parameters
     ----------
@@ -35,7 +36,7 @@ def bf_mcs_quantile(
     n_params : int
         Number of parameters of objective function.
 
-    loc : np.ndarray or float
+    loc : float or np.ndarray
         The location(`loc`) keyword passed to `scipy.stats.norm`_ function to shift the
         location of "standardized" distribution. Specifically, for normal distribution
         it specifies the mean with the length of `n_params`.
@@ -43,7 +44,7 @@ def bf_mcs_quantile(
         .. _scipy.stats.norm: https://docs.scipy.org/doc/scipy/reference/generated/
             _scipy.stats.norm.html
 
-    scale : np.ndarray or float
+    scale : float or np.ndarray
         The `scale` keyword passed to `scipy.stats.norm`_ function to adjust the scale of
         "standardized" distribution. Specifically, for normal distribution it specifies
         the covariance matrix of shape (n_params, n_params).
@@ -64,7 +65,8 @@ def bf_mcs_quantile(
         dimensions; however if the number of parameters (``len(mean)``) exceeds ~20
         "random" can start to perform better. See https://tinyurl.com/p6grk3j.
 
-    seed : Random number generator seed.
+    seed : int
+        Random number generator seed.
 
     skip : int
         Number of values to skip of Sobol sequence. Default is `0`.
@@ -96,6 +98,7 @@ def bf_mcs_quantile(
     dalp = (0.98 - 0.02) / 30
     alp = np.arange(0.02, 0.98 + dalp, dalp)  # len(alp) = 31
 
+    # get the two independent sample sets from a joint PDF
     x, x_prime = _bf_unconditional_sample(
         n_draws,
         n_params,
@@ -106,11 +109,22 @@ def bf_mcs_quantile(
         seed=0,
         skip=0,
     )
+
+    # get the conditional sample set
     x_mix = _bf_conditional_sample(x, x_prime)
+
+    # quantile of output calculated with unconditional sample set
     quantile_y_x = _bf_unconditional_quantile_y(x, alp, func)
+
+    # quantile of output calculated with conditional sample set
     quantile_y_x_mix = _bf_conditional_quantile_y(x_mix, alp, func)
+
+    # Get quantile based measures
     q_1, q_2 = _bf_quantile_measures(quantile_y_x, quantile_y_x_mix)
+
+    # Get normalized quantile based measures
     norm_q_1, norm_q_2 = _bf_nomalized_quantile_measures(q_1, q_2)
+
     return q_1, q_2, norm_q_1, norm_q_2
 
 
@@ -125,8 +139,8 @@ def _bf_unconditional_sample(
     skip=0,
 ):
     """Generate two independent sample sets."""
+    # Generate uniform distributed sample
     np.random.seed(seed)
-
     if sampling_scheme == "sobol":
         u = cp.generate_samples(
             order=n_draws + skip,
@@ -144,7 +158,7 @@ def _bf_unconditional_sample(
     u_1 = u[skip:, :n_params]
     u_2 = u[skip:, n_params:]
 
-    # Transform uniform draw into assigned joint PDF
+    # Transform uniform draw into the assigned joint PDF
     if dist_type == "Normal":
         z = norm.ppf(u_1)
         z_prime = norm.ppf(u_2)
@@ -173,11 +187,12 @@ def _bf_conditional_sample(x, x_prime):
         for j in range(n_draws):
             x_mix[j, i] = x
             x_mix[j, i, :, i] = x_prime[j, i]
+
     return x_mix
 
 
 def _bf_unconditional_quantile_y(x, alp, func):
-    """Calculate quantiles of outputs with unconditional sample set as inputs."""
+    """Calculate quantiles of outputs with unconditional sample set as input."""
     n_draws, n_params = x.shape
 
     y_x = np.zeros((n_draws, n_draws, 1))  # N*N*1
@@ -192,11 +207,12 @@ def _bf_unconditional_quantile_y(x, alp, func):
             quantile_y_x[j, pp] = y_x_asc[j][
                 (np.floor(alp[pp] * n_draws)).astype(int)
             ]  # quantiles corresponding to alpha
+
     return quantile_y_x
 
 
 def _bf_conditional_quantile_y(x_mix, alp, func):
-    """Calculate quantiles of outputs with conditional sample set as inputs."""
+    """Calculate quantiles of outputs with conditional sample set as input."""
     n_draws, n_params = x_mix.shape[:2]
 
     y_x_mix = np.zeros((n_draws, n_params, n_draws, 1))  # N*d*N*1
@@ -224,7 +240,6 @@ def _bf_quantile_measures(
     quantile_y_x_mix,
 ):
     """Compute the brute force MC/QMC estimators of quantile based measures."""
-    # """Compute MC/QMC estimators of quantile based measures."""
     # initialization
     n_draws, n_params, len_alp = quantile_y_x_mix.shape[:3]
 
@@ -243,6 +258,7 @@ def _bf_quantile_measures(
     # reshape
     q_1 = np.transpose(q_1).reshape((len_alp, n_params))
     q_2 = np.transpose(q_2).reshape((len_alp, n_params))
+
     return q_1, q_2
 
 
