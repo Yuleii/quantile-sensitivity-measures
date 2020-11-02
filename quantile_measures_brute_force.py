@@ -240,24 +240,27 @@ def _bf_quantile_measures(
                 q_1[i, pp] = np.mean(np.absolute(delt[:, i, pp]))  # |delt|
                 q_2[i, pp] = np.mean(delt[:, i, pp] ** 2)  # (delt)^2
 
+    # reshape
+    q_1 = np.transpose(q_1).reshape((len_alp, n_params))
+    q_2 = np.transpose(q_2).reshape((len_alp, n_params))
     return q_1, q_2
 
 
 def _bf_nomalized_quantile_measures(q_1, q_2):
     """Compute the brute force MC/QMC estimators of nomalized quantile based measures."""
-    n_params, len_alp = q_1.shape[:2]
+    len_alp, n_params = q_1.shape
 
     sum_q_1 = np.zeros(len_alp)
     sum_q_2 = np.zeros(len_alp)
-    norm_q_1 = np.zeros((n_params, len_alp))
-    norm_q_2 = np.zeros((n_params, len_alp))
+    norm_q_1 = np.zeros((len_alp, n_params))
+    norm_q_2 = np.zeros((len_alp, n_params))
 
     # Equation 13 & 14
-    sum_q_1 = sum(q_1)
-    sum_q_2 = sum(q_2)
-    for i in range(n_params):
-        for pp in range(len_alp):
-            norm_q_1[i, pp] = q_1[i, pp] / sum_q_1[pp]
-            norm_q_2[i, pp] = q_2[i, pp] / sum_q_2[pp]
+    for pp in range(len_alp):
+        sum_q_1[pp] = np.sum(q_1[pp, :])
+        sum_q_2[pp] = np.sum(q_2[pp, :])
+        for i in range(n_params):
+            norm_q_1[pp, i] = q_1[pp, i] / sum_q_1[pp]
+            norm_q_2[pp, i] = q_2[pp, i] / sum_q_2[pp]
 
     return norm_q_1, norm_q_2
