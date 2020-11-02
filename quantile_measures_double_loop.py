@@ -24,7 +24,7 @@ def dlr_mcs_quantile(
     skip=0,
 ):
 
-    r"""Compute Monte Carlo estimators of quantile based global sensitivity measures.
+    r"""Compute (Quasi) Monte Carlo estimators of quantile based global sensitivity measures.
 
     This function implements the Double loop reordering
     (DLR) approach described in Section 4.2 of [K2019]_.
@@ -56,7 +56,7 @@ def dlr_mcs_quantile(
     n_draws : int
         Number of sampled points. This will later turn into the number of Monte Carlo draws.
         Accroding to [K2017]_, to preserve the uniformity properties `n_draws` should always be
-        equal to :math:`n_draws = 2^p`, where :math:`p` is an integer. Default is :math:`2^13`.
+        equal to :math:`n_draws = 2^p`, where :math:`p` is an integer.
 
     sampling_scheme : str
         Sampling scheme that is used for the creation of a base
