@@ -37,36 +37,27 @@ def first_example_fixture():
     alp = np.arange(0.02, 0.98 + dalp, dalp)  # len(alp) = 31
 
     # q_2: PDF of the out put Y(Eq.30)
-    expect_q_2 = []
-    for a in alp:
-        q_2_a = []
-        for i in range(n_params_1):
-            q_2_i = (
-                cov_1[i, i]
-                + norm.ppf(a) ** 2
-                * (
-                    np.sqrt(np.trace(cov_1))
-                    - np.sqrt(sum(cov_1[j, j] for j in range(n_params_1) if j != i))
-                )
-                ** 2
+    q_2_true = [
+        (
+            cov_1[i, i]
+            + norm.ppf(a) ** 2
+            * (
+                np.sqrt(np.trace(cov_1))
+                - np.sqrt(sum(cov_1[j, j] for j in range(n_params_1) if j != i))
             )
-            q_2_a.append(q_2_i)
-        expect_q_2.append(q_2_a)
-
-    expect_q_2 = np.vstack(expect_q_2).reshape((len(alp), n_params_1))
+            ** 2
+        )
+        for a in alp
+        for i in range(n_params_1)
+    ]
+    # reshape
+    q_2_true = np.vstack(q_2_true).reshape((len(alp), n_params_1))
 
     # Q_2: normalized quantile based sensitivity measure 2.(Eq.14)
-    expect_norm_q_2 = []
-    for q in expect_q_2:
-        norm_q_2_a = []
-        for i in range(n_params_1):
-            norm_q_2_i = q[i] / sum(q)
-            norm_q_2_a.append(norm_q_2_i)
-        expect_norm_q_2.append(norm_q_2_a)
+    norm_q_2_true = [q[i] / sum(q) for q in q_2_true for i in range(n_params_1)]
+    norm_q_2_true = np.hstack(norm_q_2_true).reshape((len(alp), n_params_1))
 
-    expect_norm_q_2 = np.hstack(expect_norm_q_2).reshape((len(alp), n_params_1))
-
-    quantile_measures_true = expect_norm_q_2
+    quantile_measures_true = norm_q_2_true
 
     out = {
         "func": simple_linear_function_transposed,
