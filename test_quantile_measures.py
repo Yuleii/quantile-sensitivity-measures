@@ -9,8 +9,8 @@ from numpy.testing import assert_almost_equal
 from scipy.stats import norm
 from temfpy.uncertainty_quantification import simple_linear_function
 
-from quantile_measures_brute_force import bf_mcs_quantile
-from quantile_measures_double_loop import dlr_mcs_quantile
+from quantile_measures import bf_mcs_quantile
+from quantile_measures import dlr_mcs_quantile
 
 
 @pytest.fixture
