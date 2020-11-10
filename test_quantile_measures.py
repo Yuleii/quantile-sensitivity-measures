@@ -9,8 +9,7 @@ from numpy.testing import assert_almost_equal
 from scipy.stats import norm
 from temfpy.uncertainty_quantification import simple_linear_function
 
-from quantile_measures import bf_mcs_quantile
-from quantile_measures import dlr_mcs_quantile
+from quantile_measures import mc_quantile_measures
 
 
 @pytest.fixture
@@ -83,11 +82,12 @@ def test_quantile_measures_first_example(first_example_fixture):
     n_draws_dlr = first_example_fixture["n_draws_dlr"]
     n_draws_br = first_example_fixture["n_draws_bf"]
 
-    for method, n_draws in zip(
-        [dlr_mcs_quantile, bf_mcs_quantile],
+    for estimator, n_draws in zip(
+        ["DLR", "brute force"],
         [n_draws_dlr, n_draws_br],
     ):
-        quantile_measures_solve = method(
+        quantile_measures_solve = mc_quantile_measures(
+            estimator,
             func=func,
             n_params=n_params,
             loc=loc,
@@ -96,7 +96,7 @@ def test_quantile_measures_first_example(first_example_fixture):
             n_draws=n_draws,
         )
         assert_almost_equal(
-            quantile_measures_solve[3],
+            quantile_measures_solve.loc["Q_2"].values,
             quantile_measures_true,
             decimal=2,
         )

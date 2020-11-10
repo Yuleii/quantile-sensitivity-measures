@@ -1,18 +1,20 @@
-"""The (Quasi) Monte Carlo estimators of quantile based global sensitivity measures.
+"""The Monte Carlo estimators of quantile based global sensitivity measures.
 
-This module contains functions to calculate global sensitivity measures based on
+This module contains functions to calculate the global sensitivity measures based on
 quantiles of the output introduced by Kucherenko et al.(2019). Both the brute force
-estimator and double loop reordering approach are included.
+and double loop reordering MC estimators are included.
 
 """
 import chaospy as cp
 import numpy as np
+import pandas as pd
 from scipy.stats import expon
 from scipy.stats import norm
 from scipy.stats import uniform
 
 
-def bf_mcs_quantile(
+def mc_quantile_measures(
+    estimator,
     func,
     n_params,
     loc,
@@ -23,12 +25,16 @@ def bf_mcs_quantile(
     seed=0,
     skip=0,
 ):
-    r"""Compute the brute force MC/QMC estimators of quantile based global sensitivity measures.
+    r"""Compute the MC/QMC estimators of quantile-based global sensitivity measures.
 
-    This function compute the brute force estimator described in Section 4.1 of [K2019]_.
+    The algorithm is described in Section 4 of Kucherenko et al.(2019).
 
     Parameters
     ----------
+    estimator : string
+        Specify the Monte Carlo estimator. One of ["brute force", "DLR"], where "DLR" denotes
+        to the double loop reordering approach.
+
     func : callable
         Objective function to estimate the quantile-based measures. Must be broadcastable.
 
@@ -38,7 +44,7 @@ def bf_mcs_quantile(
     loc : float or np.ndarray
         The location(`loc`) keyword passed to `scipy.stats.norm`_ function to shift the
         location of "standardized" distribution. Specifically, for normal distribution
-        it specifies the mean with the length of `n_params`.
+        it specifies the mean array with the length of `n_params`.
 
         .. _scipy.stats.norm: https://docs.scipy.org/doc/scipy/reference/generated/
             _scipy.stats.norm.html
@@ -52,7 +58,9 @@ def bf_mcs_quantile(
         The distribution type of inputs. Options are "Normal", "Exponential" and "Uniform".
 
     n_draws : int
-        Number of brute force Monte Carlo draws for the estimation of the sensitivity measures.
+        Number of Monte Carlo draws. For double loop reordering estimator, to preserve
+        the uniformity properties `n_draws` should always be equal to :math:`n_draws = 2^p`,
+        where :math:`p` is an integer.
 
     sampling_scheme : str, optional
         One of ["random", "sobol"], default "sobol".
@@ -65,31 +73,12 @@ def bf_mcs_quantile(
 
     Returns
     -------
-    q_1 : np.ndarray
-        The brute force estimator of quantile based measure :math:`\tilde{q_i}^{(1)}(\alpha)`.
-        Shape has the form (31, n_params), where 31 denotes the length of `alp`, a sequence
-        of evenly spaced values on the interval (0, 1).
-
-    q_2 : np.ndarray
-        The brute force estimator of quantile based measure :math:`\tilde{q_i}^{(2)}(\alpha)`.
-        Shape has the form (31, n_params).
-
-    norm_q_1 : np.ndarray
-        The brute force estimator of normalized quantile based measure :math:`Q_i^{(1)}(\alpha)`.
-        Shape has the form (31, n_params).
-
-    norm_q_2 : np.ndarray
-        The brute force estimator of normalized quantile based measure :math:`Q_i^{(2)}(\alpha)`.
-        Shape has the form (31, n_params).
-
-    References
-    ----------
-    .. [K2019] S. Kucherenko, S. Song, L. Wang. Quantile based global
-        sensitivity measures, Reliab. Eng. Syst. Saf. 185 (2019) 35–48.
+    df_measures : pd.DataFrame
+        DataFrame containing quantile-based sensitivity measures.
     """
     # range of alpha
     dalp = (0.98 - 0.02) / 30
-    alp = np.arange(0.02, 0.98 + dalp, dalp)  # len(alp) = 31
+    alpha_grid = np.arange(0.02, 0.98 + dalp, dalp)  # len(alpha_grid) = 31
 
     # get the two independent groups of sample points
     x, x_prime = _unconditional_samples(
@@ -104,13 +93,18 @@ def bf_mcs_quantile(
     )
 
     # get the conditional sample sets
-    x_mix = _bf_conditional_samples(x, x_prime)
+    if estimator == "brute force":
+        x_mix = _bf_conditional_samples(x, x_prime)
+    elif estimator == "DLR":
+        x_mix = _dlr_conditional_samples(x)
+    else:
+        raise NotImplementedError
 
     # quantiles of output with unconditional input
-    quantile_y_x = _unconditional_quantile_y(x, alp, func)
+    quantile_y_x = _unconditional_quantile_y(x, alpha_grid, func)
 
     # quantiles of output with conditional input
-    quantile_y_x_mix = _conditional_quantile_y(x_mix, func, alp)
+    quantile_y_x_mix = _conditional_quantile_y(x_mix, func, alpha_grid)
 
     # Get quantile based measures
     q_1, q_2 = _quantile_measures(quantile_y_x, quantile_y_x_mix)
@@ -118,123 +112,21 @@ def bf_mcs_quantile(
     # Get normalized quantile based measures
     norm_q_1, norm_q_2 = _normalized_quantile_measures(q_1, q_2)
 
-    return q_1, q_2, norm_q_1, norm_q_2
+    # store results
+    dict_measures = {
+        "q_1": pd.DataFrame(q_1),
+        "q_2": pd.DataFrame(q_2),
+        "Q_1": pd.DataFrame(norm_q_1),
+        "Q_2": pd.DataFrame(norm_q_2),
+    }
+    df_measures = pd.concat(dict_measures.values(), axis=0)
+    df_measures.index = pd.MultiIndex.from_product(
+        [dict_measures.keys(), alpha_grid],
+        names=["Measures", "alpha"],
+    )
+    df_measures.columns = ["x_%d" % (i + 1) for i in range(n_params)]
 
-
-def dlr_mcs_quantile(
-    func,
-    n_params,
-    loc,
-    scale,
-    dist_type,
-    n_draws,
-    sampling_scheme="sobol",
-    seed=0,
-    skip=0,
-):
-    r"""Compute (Quasi) Monte Carlo estimators of quantile based global sensitivity measures.
-
-    This function implements the Double loop reordering
-    (DLR) approach described in Section 4.2 of [K2019]_.
-
-    Parameters
-    ----------
-    func : callable
-        Objective function to calculate the quantile-based measures. Must be broadcastable.
-
-    n_params : int
-        Number of parameters of objective function.
-
-    loc : float or np.ndarray
-        The location(`loc`) keyword passed to `scipy.stats.norm`_ function to shift the
-        location of "standardized" distribution. Specifically, for normal distribution
-        it specifies the mean with the length of `n_params`.
-
-        .. _scipy.stats.norm: https://docs.scipy.org/doc/scipy/reference/generated/
-            _scipy.stats.norm.html
-
-    scale : float or np.ndarray
-        The `scale` keyword passed to `scipy.stats.norm`_ function to adjust the scale of
-        "standardized" distribution. Specifically, for normal distribution it specifies
-        the covariance matrix of shape (n_params, n_params).
-
-    dist_type : str
-        The distribution type of input. Options are "Normal", "Exponential" and "Uniform".
-
-    n_draws : int
-        Number of brute force Monte Carlo draws for the estimation of the sensitivity measures.
-        Accroding to [K2017]_, to preserve the uniformity properties `n_draws` should always be
-        equal to :math:`n_draws = 2^p`, where :math:`p` is an integer.
-
-    sampling_scheme : str, optional
-        One of ["random", "sobol"], default "sobol".
-
-    seed : int, optional
-        Random number generator seed.
-
-    skip : int, optional
-        Number of values to skip of Sobol sequence. Default is `0`.
-
-    Returns
-    -------
-    q_1 : np.ndarray
-        The DLR estimator of quantile based measure :math:`\tilde{q_i}^{(1)}(\alpha)`.
-        Shape has the form (31, n_params), where 31 denotes the length of `alpha`, a
-        sequence of evenly spaced values on the interval (0, 1).
-    q_2 : np.ndarray
-        The DLR estimator of quantile based measure :math:`\tilde{q_i}^{(2)}(\alpha)`.
-        Shape has the form (31, n_params).
-
-    norm_q_1 : np.ndarray
-        The DLR estimator of normalized quantile based measure :math:`Q_i^{(1)}(\alpha)`.
-        Shape has the form (31, n_params).
-
-    norm_q_2 : np.ndarray
-        The DLR estimator of normalized quantile based measure :math:`Q_i^{(2)}(\alpha)`.
-        Shape has the form (31, n_params).
-
-
-    References
-    ----------
-    .. [K2019] S. Kucherenko, S. Song, L. Wang. Quantile based global
-        sensitivity measures, Reliab. Eng. Syst. Saf. 185 (2019) 35–48.
-
-    .. [K2017] Kucherenko S, Song S. Different numerical estimators
-        for main effect global sensitivity indices. Reliab Eng Syst
-        Saf 2017;165:222–38.
-    """
-    # range of alpha
-    dalp = (0.98 - 0.02) / 30
-    alp = np.arange(0.02, 0.98 + dalp, dalp)  # len(alp) = 31
-
-    # get the base draws from a joint PDF
-    x = _unconditional_samples(
-        n_draws,
-        n_params,
-        dist_type,
-        loc,
-        scale,
-        sampling_scheme="sobol",
-        seed=0,
-        skip=0,
-    )[0]
-
-    # get the conditional draws
-    x_mix = _dlr_conditional_samples(x)
-
-    # quantile of output calculated with base draws
-    quantile_y_x = _unconditional_quantile_y(x, alp, func)
-
-    # quantile of output calculated with conditional draws
-    quantile_y_x_mix = _conditional_quantile_y(x_mix, func, alp)
-
-    # Get quantile based measures
-    q_1, q_2 = _quantile_measures(quantile_y_x, quantile_y_x_mix)
-
-    # Get normalized quantile based measures
-    norm_q_1, norm_q_2 = _normalized_quantile_measures(q_1, q_2)
-
-    return q_1, q_2, norm_q_1, norm_q_2
+    return df_measures
 
 
 def _unconditional_samples(
@@ -252,7 +144,7 @@ def _unconditional_samples(
     Parameters
     ----------
     n_draws : int
-        Number of DLR Monte Carlo draws.
+        Number of Monte Carlo draws.
     n_params : int
         Number of parameters of objective function.
     dist_type : str
@@ -318,14 +210,15 @@ def _bf_conditional_samples(x, x_prime):
 
     Parameters
     ----------
-    x, x_prime : np.ndarray
-        Two arrays of shape (n_draws, n_params) with i.i.d draws from a joint distribution.
+    x : np.ndarray
+        Array with shape (n_draws, n_params).
+    x_prime : np.ndarray
+        Array with shape (n_draws, n_params).
 
     Returns
     -------
     x_mix :  np.ndarray
         Mixed sample sets. Shape has the form (n_draws, n_params, n_draws, n_params).
-
     """
     n_draws, n_params = x.shape
     x_mix = np.zeros((n_draws, n_params, n_draws, n_params))
@@ -339,7 +232,7 @@ def _bf_conditional_samples(x, x_prime):
 
 
 def _dlr_conditional_samples(x):
-    """Generate conditional sample sets from the base draws.
+    """Generate conditional sample sets.
 
     Parameters
     ----------
@@ -380,14 +273,14 @@ def _dlr_conditional_samples(x):
     return x_mix
 
 
-def _unconditional_quantile_y(x, alp, func):
-    """Return quantiles of outputs with unconditional draws as input.
+def _unconditional_quantile_y(x, alpha_grid, func):
+    """Return quantiles of outputs with unconditional input.
 
     Parameters
     ----------
     x : np.ndarray
         Draws from a joint distribution. Shape has the form (n_draws, n_params).
-    alp : np.ndarray
+    alpha_grid : np.ndarray
         A sequence of evenly spaced values on the interval (0, 1).
     func : callable
         Objective function to calculate the quantile-based measures. Must be broadcastable.
@@ -395,8 +288,8 @@ def _unconditional_quantile_y(x, alp, func):
     Returns
     -------
     quantile_y_x :  np.ndarray
-        Quantiles of outputs corresponding to alpha for unconditional inputs.
-        Shape has the form (len(alp),).
+        Quantiles of outputs corresponding to alpha with unconditional inputs.
+        Shape has the form (len(alpha_grid),).
 
     """
     n_draws = x.shape[0]
@@ -404,14 +297,14 @@ def _unconditional_quantile_y(x, alp, func):
     # Equation 21a
     y_x = func(x)
     y_x_asc = np.sort(y_x)
-    q_index = (np.floor(alp * n_draws)).astype(int)
+    q_index = (np.floor(alpha_grid * n_draws)).astype(int)
     quantile_y_x = y_x_asc[q_index]
 
     return quantile_y_x
 
 
-def _conditional_quantile_y(x_mix, func, alp):
-    """Return quantiles of outputs with conditional draws as input.
+def _conditional_quantile_y(x_mix, func, alpha_grid):
+    """Return quantiles of outputs with conditional input.
 
     Parameters
     ----------
@@ -419,20 +312,20 @@ def _conditional_quantile_y(x_mix, func, alp):
         Mixed draws. Shape has the form (m, n_params, n_draws, n_params).
     func : callable
         Objective function to calculate the quantile-based measures. Must be broadcastable.
-    alp : np.ndarray
+    alpha_grid : np.ndarray
         A sequence of evenly spaced values on the interval (0, 1).
 
     Returns
     -------
     quantile_y_x_mix  :  np.ndarray
-        Quantiles of output corresponding to alpha for conditional inputs. Shape has the form
-        (m, n_params, len(alp), 1), where m is the number of conditional bins.
+        Quantiles of output corresponding to alpha with conditional inputs. Shape has the form
+        (m, n_params, len(alpha_grid), 1), where m is the number of conditional bins.
     """
     m, n_params, n_draws = x_mix.shape[:3]
 
     y_x_mix = np.zeros((m, n_params, n_draws, 1))
     y_x_mix_asc = np.zeros((m, n_params, n_draws, 1))
-    quantile_y_x_mix = np.zeros((m, n_params, len(alp), 1))
+    quantile_y_x_mix = np.zeros((m, n_params, len(alpha_grid), 1))
 
     # Equation 21b/26. Get quantiles within each bin.
     for i in range(n_params):
@@ -440,7 +333,7 @@ def _conditional_quantile_y(x_mix, func, alp):
             # values of conditional outputs
             y_x_mix[j, i] = np.vstack(func(x_mix[j, i]))
             y_x_mix_asc[j, i] = np.sort(y_x_mix[j, i], axis=0)
-            for pp, a in enumerate(alp):
+            for pp, a in enumerate(alpha_grid):
                 quantile_y_x_mix[j, i, pp] = y_x_mix_asc[j, i][
                     (np.floor(a * n_draws)).astype(int)
                 ]  # quantiles corresponding to alpha
@@ -456,7 +349,7 @@ def _quantile_measures(quantile_y_x, quantile_y_x_mix):
     q_2 = np.zeros((len_alp, n_params))
     delt = np.zeros((m, n_params, len_alp, 1))
 
-    # Equation 24 & 25 / 27 & 28
+    # Equation 24&25&27&28
     for j in range(m):
         for i in range(n_params):
             for pp in range(len_alp):
