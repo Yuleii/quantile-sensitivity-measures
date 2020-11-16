@@ -1,4 +1,4 @@
-"""The Monte Carlo estimators of quantile based global sensitivity measures.
+"""Capabilities for quantile-based sensitivity analysis.
 
 This module contains functions to calculate the global sensitivity measures based on
 quantiles of the output introduced by Kucherenko et al.(2019). Both the brute force
@@ -58,9 +58,10 @@ def mc_quantile_measures(
         The distribution type of inputs. Options are "Normal", "Exponential" and "Uniform".
 
     n_draws : int
-        Number of Monte Carlo draws. For double loop reordering estimator, to preserve
-        the uniformity properties `n_draws` should always be equal to :math:`n_draws = 2^p`,
-        where :math:`p` is an integer.
+        Number of Monte Carlo draws. For double loop reordering estimator,
+        S. Kucherenko and S. Song(2017). suggests that `n_draws` should always be equal
+        to :math:`2^p` to preserve the uniformity properties , where :math:`p`
+        is an integer.
 
     sampling_scheme : str, optional
         One of ["random", "sobol"], default "sobol".
