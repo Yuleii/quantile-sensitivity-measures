@@ -1,21 +1,24 @@
-"""Test for quantile based global sensitivity measures.
+"""This module contains tests for quantile based sensitivity measures.
 
+We implement tests replicating the results presented in Kucherenko et al. 2019.
 Analytical values of linear model with normally distributed variables
-are used as benchmarks for verification of numerical estimates.
+are used as benchmarks for the first test case. Numerical
+estimates of double loop reordering approach with 2^13 draws are
+used as benchmarks for verifying other cases.
 """
 import numpy as np
 from numpy.testing import assert_array_almost_equal
 from scipy.stats import norm
+from temfpy.uncertainty_quantification import ishigami
 from temfpy.uncertainty_quantification import simple_linear_function
 
 from quantile_measures import mc_quantile_measures
-
-# from temfpy.uncertainty_quantification import ishigami
 
 
 def test_1():
     """First test case."""
 
+    # Objective function
     def simple_linear_function_transposed(x):
         """Simple linear function model but with variables stored in columns."""
         return simple_linear_function(x.T)
@@ -61,28 +64,33 @@ def test_1():
         [2 ** 13, 3000],
     ):
         norm_q_2_solve = mc_quantile_measures(
-            estimator,
-            simple_linear_function_transposed,
-            n_params,
-            mean,
-            cov,
-            "Normal",
-            n_draws,
+            estimator=estimator,
+            func=simple_linear_function_transposed,
+            n_params=n_params,
+            loc=mean,
+            scale=cov,
+            dist_type="Normal",
+            n_draws=n_draws,
         )
+        # The numerical approximation can be more precise with the increase of n_draws.
         assert_array_almost_equal(
             norm_q_2_solve.loc["Q_2"],
             norm_q_2_true,
-            decimal=2,  # Numeric approximation can be more precise with the increase of n_draws.
+            decimal=2,
         )
 
 
 def test_2():
     """Second test case."""
 
-    def test_function_2(x):
-        result = x[:, 0] - x[:, 1] + x[:, 2] - x[:, 3]
-        return result
+    # Objective function
+    def simple_linear_function_modified(x):
+        """Simple linear function model with variables stored in columns and signs changed."""
+        a = [1, -1, 1, -1]
+        b = [q for q in x.T]
+        return simple_linear_function([i * q for i, q in zip(a, b)])
 
+    # Numerical estimates using double loop reordering approach with 2^13 draws
     norm_q_2_true = np.array(
         [
             [0.178, 0.344, 0.17, 0.309],
@@ -127,15 +135,12 @@ def test_2():
     ):
         norm_q_2_solve = mc_quantile_measures(
             estimator=estimator,
-            func=test_function_2,
+            func=simple_linear_function_modified,
             n_params=n_params,
             loc=0,
             scale=1,
             dist_type="Exponential",
             n_draws=n_draws,
-            sampling_scheme="sobol",
-            seed=0,
-            skip=0,
         )
         assert_array_almost_equal(
             norm_q_2_solve.loc["Q_2"],
@@ -147,47 +152,47 @@ def test_2():
 def test_3():
     """Third test case."""
 
-    def ishigami(x, a=7, b=0.1):
-        rslt = (1 + b * x[2] ** 4) * np.sin(x[0]) + a * np.sin(x[1]) ** 2
-        return rslt
-
+    # Objective function
     def ishigami_transposed(x, a=7, b=0.1):
-        """Simple linear function model but with variables stored in columns."""
+        """Ishigami function with variables stored in columns."""
         return ishigami(x.T, a=7, b=0.1)
 
-    norm_q_2_true = [
-        [0.513, 0.2, 0.287],
-        [0.419, 0.356, 0.226],
-        [0.323, 0.459, 0.218],
-        [0.264, 0.555, 0.182],
-        [0.234, 0.621, 0.145],
-        [0.22, 0.658, 0.122],
-        [0.226, 0.676, 0.098],
-        [0.245, 0.672, 0.083],
-        [0.275, 0.656, 0.069],
-        [0.309, 0.63, 0.061],
-        [0.346, 0.608, 0.046],
-        [0.373, 0.591, 0.035],
-        [0.399, 0.581, 0.02],
-        [0.416, 0.574, 0.01],
-        [0.428, 0.569, 0.003],
-        [0.431, 0.569, 0.0],
-        [0.429, 0.569, 0.003],
-        [0.416, 0.573, 0.01],
-        [0.401, 0.579, 0.02],
-        [0.377, 0.588, 0.035],
-        [0.349, 0.604, 0.047],
-        [0.318, 0.62, 0.062],
-        [0.28, 0.649, 0.071],
-        [0.25, 0.665, 0.085],
-        [0.231, 0.669, 0.1],
-        [0.227, 0.648, 0.125],
-        [0.236, 0.617, 0.148],
-        [0.271, 0.546, 0.183],
-        [0.33, 0.452, 0.218],
-        [0.419, 0.351, 0.23],
-        [0.514, 0.199, 0.288],
-    ]
+    # Numerical estimates using double loop reordering approach with 2^13 draws
+    norm_q_2_true = np.array(
+        [
+            [0.513, 0.2, 0.287],
+            [0.419, 0.356, 0.226],
+            [0.323, 0.459, 0.218],
+            [0.264, 0.555, 0.182],
+            [0.234, 0.621, 0.145],
+            [0.22, 0.658, 0.122],
+            [0.226, 0.676, 0.098],
+            [0.245, 0.672, 0.083],
+            [0.275, 0.656, 0.069],
+            [0.309, 0.63, 0.061],
+            [0.346, 0.608, 0.046],
+            [0.373, 0.591, 0.035],
+            [0.399, 0.581, 0.02],
+            [0.416, 0.574, 0.01],
+            [0.428, 0.569, 0.003],
+            [0.431, 0.569, 0.0],
+            [0.429, 0.569, 0.003],
+            [0.416, 0.573, 0.01],
+            [0.401, 0.579, 0.02],
+            [0.377, 0.588, 0.035],
+            [0.349, 0.604, 0.047],
+            [0.318, 0.62, 0.062],
+            [0.28, 0.649, 0.071],
+            [0.25, 0.665, 0.085],
+            [0.231, 0.669, 0.1],
+            [0.227, 0.648, 0.125],
+            [0.236, 0.617, 0.148],
+            [0.271, 0.546, 0.183],
+            [0.33, 0.452, 0.218],
+            [0.419, 0.351, 0.23],
+            [0.514, 0.199, 0.288],
+        ],
+    )
 
     n_params = norm_q_2_true.shape[1]
     # lower bound of uniform distribution
@@ -207,9 +212,6 @@ def test_3():
             scale=interval,
             dist_type="Uniform",
             n_draws=n_draws,
-            sampling_scheme="sobol",
-            seed=0,
-            skip=0,
         )
         assert_array_almost_equal(
             norm_q_2_solve.loc["Q_2"],
